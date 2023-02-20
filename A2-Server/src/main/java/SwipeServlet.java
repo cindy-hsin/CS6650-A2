@@ -1,12 +1,17 @@
+import com.google.gson.JsonObject;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.MessageProperties;
 import java.util.concurrent.TimeoutException;
+import java.util.logging.Logger;
 import javax.servlet.*;
 import javax.servlet.http.*;
 import javax.servlet.annotation.*;
 import java.io.IOException;
 import datamodel.*;
 import com.google.gson.Gson;
+import javax.swing.event.DocumentEvent.ElementChange;
 import rmqpool.RMQChannelFactory;
 import rmqpool.RMQChannelPool;
 
@@ -17,6 +22,7 @@ public class SwipeServlet extends HttpServlet {
 
   private final static int CHANNEL_POOL_SIZE = 10; // TODO: ?? Sensible Range??
   private final static String QUEUE_SERVER_URL = "localhost";
+  private final static String EXCHANGE_NAME = "swipedata";
 
   private RMQChannelPool pool;
 
@@ -79,20 +85,27 @@ public class SwipeServlet extends HttpServlet {
     }
 
     // Check if request body/payload is valid, and set corresponding response status & message
-    this.validateRequestBody(request, response, responseMsg, gson);
+    String reqBodyJsonStr = this.getJsonStrFromReq(request);
+    boolean isReqBodyValid = this.validateRequestBody(reqBodyJsonStr, response, responseMsg, gson);
 
-    // If everything is valid, send the Swipe data to RabbitMQ queue
-    if (response.getStatus() == HttpServletResponse.SC_CREATED) {
-
+    if (!isReqBodyValid) {
+      // Send the response status(Failed) & message back to client
+      response.getOutputStream().print(gson.toJson(responseMsg));
+      response.getOutputStream().flush();
+      return;
     }
 
-
-    // Send the response status & message back to client
+    // If request body is valid, send the Swipe data to RabbitMQ queue
+    if (this.sendMessageToQueue(reqBodyJsonStr)) { //TODO: Check argument type: JsonObject?? String??
+      responseMsg.setMessage("Succeeded in sending message to RabbitMQ!");
+      response.setStatus(HttpServletResponse.SC_CREATED);
+    } else {
+      responseMsg.setMessage("Failed to send message to RabbitMQ");
+      response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
     response.getOutputStream().print(gson.toJson(responseMsg));
     response.getOutputStream().flush();
   }
-
-
 
 
 
@@ -109,49 +122,54 @@ public class SwipeServlet extends HttpServlet {
   }
 
 
-  private void validateRequestBody(HttpServletRequest request, HttpServletResponse response, ResponseMsg responseMsg, Gson gson) {
-    try {
-      StringBuilder sb = new StringBuilder();
-      String s;
-      while ((s = request.getReader().readLine()) != null) {
-        sb.append(s);
-      }
-
-      SwipeDetails swipeDetails = (SwipeDetails) gson.fromJson(sb.toString(), SwipeDetails.class);
+  private boolean validateRequestBody(String reqBodyJsonStr,HttpServletResponse response, ResponseMsg responseMsg, Gson gson) {
+      SwipeDetails swipeDetails = (SwipeDetails) gson.fromJson(reqBodyJsonStr, SwipeDetails.class);
 
       if (!swipeDetails.isSwiperValid()) {
         responseMsg.setMessage("User not found: invalid swiper id: "+ swipeDetails.getSwiper());
         response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        return false;
       } else if (!swipeDetails.isSwipeeValid()) {
         responseMsg.setMessage("User not found: invalid swipee id: " + swipeDetails.getSwipee());
         response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        return false;
       } else if (!swipeDetails.isCommentValid()) {
         responseMsg.setMessage("Invalid inputs: comment cannot exceed 256 characters");
         response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-      } else {
-        responseMsg.setMessage("Write successful!");
-        response.setStatus(HttpServletResponse.SC_CREATED);
+        return false;
       }
-    } catch (IOException e) {
-      e.printStackTrace();
-      responseMsg.setMessage(e.getMessage());
+
+      return true;
+  }
+
+  private String getJsonStrFromReq(HttpServletRequest request) throws IOException {
+    StringBuilder sb = new StringBuilder();
+    String s;
+    while ((s = request.getReader().readLine()) != null) {
+      sb.append(s);
     }
 
+    return sb.toString();
   }
+
   /**
    *
-   * Send Message to Queue
+   * Send Message to Queue, with a Publish-Subscribe pattern
    * Ref: Ian's book P136
    */
 
-  private boolean sendMessageToQueue(JsonObject message) {
+  private boolean sendMessageToQueue(String message) {  //TODO: argument type: JsonObject?? String??
     try {
-      Channel channel = pool.borrowObject();
-      channel.basicPublish(// arguments omitted for brevity)
-          pool.returnObject(channel);
+      Channel channel = this.pool.borrowObject();
+      // Declare a durable exchange
+      channel.exchangeDeclare(EXCHANGE_NAME, "fanout", true);
+      // Publish a persistent message. Route key is ignored ("") in fanout mode.
+      channel.basicPublish(EXCHANGE_NAME, "", MessageProperties.PERSISTENT_TEXT_PLAIN, message.getBytes("UTF-8"));
+      // TODO: Add Publisher Confirm
+      this.pool.returnObject(channel);
       return true;
     } catch (Exception e) {
-      logger.info("Failed to send message to RabbitMQ");
+      Logger.getLogger(SwipeServlet.class.getName()).info("Failed to send message to RabbitMQ");
       return false;
     }
   }

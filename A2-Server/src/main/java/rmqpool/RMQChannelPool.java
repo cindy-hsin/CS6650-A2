@@ -47,6 +47,6 @@ public class RMQChannelPool {
   }
 
   public void close() {
-    // this.pool.close();   TODO: ??
+    // this.pool.close();   TODO: ?? What to do here?
   }
 }
