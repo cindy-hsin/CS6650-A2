@@ -4,9 +4,20 @@ public class SwipeDetails {
   private final static int MAX_COMMENT_LEN = 256;
   private static final int MAX_SWIPER_ID = 5000;
   private static final int MAX_SWIPEE_ID = 1000000;
+
+
   private String swiper;
   private String swipee;
   private String comment;
+  private String direction;
+
+  public String getDirection() {
+    return direction;
+  }
+
+  public void setDirection(String direction) {
+    this.direction = direction;
+  }
 
   public String getSwiper() {
     return swiper;

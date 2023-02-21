@@ -3,8 +3,14 @@ import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.MessageProperties;
+
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import javax.servlet.*;
 import javax.servlet.http.*;
 import javax.servlet.annotation.*;
@@ -21,7 +27,14 @@ public class SwipeServlet extends HttpServlet {
   private final static String RIGHT = "right";
 
   private final static int CHANNEL_POOL_SIZE = 10; // TODO: ?? Sensible Range??
-  private final static String QUEUE_SERVER_URL = "localhost";
+  private final static Map<String, String> RMQ_SERVER_CONFIG  = Stream.of(new String[][] {
+      { "userName", "cindychen" },
+      { "password", "password" },
+      { "virtualHost", "swipe_broker" },
+      { "hostName", "34.221.254.107" },
+      { "portNumber", "5672" }      // 5672 is for RabbitMQ server. 15672 is to access management console. https://stackoverflow.com/a/69523757
+  }).collect(Collectors.toMap(data -> data[0], data -> data[1]));
+
   private final static String EXCHANGE_NAME = "swipedata";
 
   private RMQChannelPool pool;
@@ -32,7 +45,12 @@ public class SwipeServlet extends HttpServlet {
     super.init();
 
     ConnectionFactory connectionFactory = new ConnectionFactory();
-    connectionFactory.setHost(QUEUE_SERVER_URL);
+    // Connect to RMQ server. Ref: https://www.rabbitmq.com/api-guide.html#connecting
+    connectionFactory.setUsername(RMQ_SERVER_CONFIG.get("userName"));
+    connectionFactory.setPassword(RMQ_SERVER_CONFIG.get("password"));
+    connectionFactory.setVirtualHost(RMQ_SERVER_CONFIG.get("virtualHost"));
+    connectionFactory.setHost(RMQ_SERVER_CONFIG.get("hostName"));
+    connectionFactory.setPort(Integer.valueOf(RMQ_SERVER_CONFIG.get("portNumber")));
 
     final Connection connection;
     try {
@@ -53,9 +71,7 @@ public class SwipeServlet extends HttpServlet {
   @Override
   protected void doPost(HttpServletRequest request, HttpServletResponse response)
       throws ServletException, IOException {
-
-
-
+    this.processRequest(request, response);
   }
 
 
@@ -76,13 +92,16 @@ public class SwipeServlet extends HttpServlet {
     }
 
     // check if URL is valid! "left" or right""
-    if (!this.isUrlValid(urlPath)) {
+    Pair urlValidationRes = this.isUrlValid(urlPath);
+    if (!urlValidationRes.isUrlPathValid()) {
       responseMsg.setMessage("invalid path parameter: should be " + LEFT + " or " + RIGHT);
       response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
       response.getOutputStream().print(gson.toJson(responseMsg));
       response.getOutputStream().flush();
       return;
     }
+
+    String direction = urlValidationRes.getDirection();
 
     // Check if request body/payload is valid, and set corresponding response status & message
     String reqBodyJsonStr = this.getJsonStrFromReq(request);
@@ -96,7 +115,7 @@ public class SwipeServlet extends HttpServlet {
     }
 
     // If request body is valid, send the Swipe data to RabbitMQ queue
-    if (this.sendMessageToQueue(reqBodyJsonStr)) { //TODO: Check argument type: JsonObject?? String??
+    if (this.sendMessageToQueue(direction, reqBodyJsonStr, gson)) { //TODO: Check argument type: JsonObject?? String??
       responseMsg.setMessage("Succeeded in sending message to RabbitMQ!");
       response.setStatus(HttpServletResponse.SC_CREATED);
     } else {
@@ -109,7 +128,7 @@ public class SwipeServlet extends HttpServlet {
 
 
 
-  private boolean isUrlValid(String urlPath) {
+  private Pair isUrlValid(String urlPath) {
     /**
      * Check if url path param: {leftorright} has value "left" or "right"
      */
@@ -117,8 +136,8 @@ public class SwipeServlet extends HttpServlet {
     // urlParts = [, 1, seasons, 2019, day, 1, skier, 123]
     String[] urlParts = urlPath.split("/");
     if (urlParts.length == 2 && (urlParts[1].equals(LEFT) || urlParts[1].equals(RIGHT)))
-      return true;
-    return false;
+      return new Pair(true, urlParts[1]);
+    return new Pair(false, null);
   }
 
 
@@ -158,7 +177,11 @@ public class SwipeServlet extends HttpServlet {
    * Ref: Ian's book P136
    */
 
-  private boolean sendMessageToQueue(String message) {  //TODO: argument type: JsonObject?? String??
+  private boolean sendMessageToQueue(String direction, String reqBodyJsonStr, Gson gson) {  //TODO: argument type: JsonObject?? String??
+    SwipeDetails swipeDetails = (SwipeDetails) gson.fromJson(reqBodyJsonStr, SwipeDetails.class);
+    swipeDetails.setDirection(direction);
+    String message = gson.toJson(swipeDetails);
+
     try {
       Channel channel = this.pool.borrowObject();
       // Declare a durable exchange
