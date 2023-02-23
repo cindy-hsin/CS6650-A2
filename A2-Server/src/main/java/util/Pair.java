@@ -1,3 +1,5 @@
+package util;
+
 public class Pair {
   private boolean isUrlPathValid;
   private String direction;

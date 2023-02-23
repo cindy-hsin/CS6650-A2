@@ -1,5 +1,7 @@
 package rmqpool;
 
+
+
 import com.rabbitmq.client.Channel;
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
@@ -7,7 +9,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-
+import util.*;
 /**
  * A simple RabbitMQ channel pool based on a BlockingQueue implementation
  * Ref: https://github.com/gortonator/foundations-of-scalable-systems/blob/main/Ch7/rmqpool/RMQChannelPool.java
@@ -25,6 +27,10 @@ public class RMQChannelPool {
       Channel channel;
       try {
         channel = factory.create();
+        // Declare a durable exchange
+        // NOTE: Declare exchanges when creating channels in Channel pool,
+        // instead of declaring them when sending each msg, will be much faster.
+        channel.exchangeDeclare(Config.EXCHANGE_NAME, "fanout", true);
         this.pool.put(channel);
       } catch (IOException | InterruptedException ex) {
         Logger.getLogger(RMQChannelPool.class.getName()).log(Level.SEVERE, null, ex);

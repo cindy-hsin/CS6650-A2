@@ -1,15 +1,10 @@
-import com.google.gson.JsonObject;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.MessageProperties;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.servlet.*;
 import javax.servlet.http.*;
@@ -17,25 +12,15 @@ import javax.servlet.annotation.*;
 import java.io.IOException;
 import datamodel.*;
 import com.google.gson.Gson;
-import javax.swing.event.DocumentEvent.ElementChange;
 import rmqpool.RMQChannelFactory;
 import rmqpool.RMQChannelPool;
+import util.*;
 
 @WebServlet(name = "SwipeServlet", value = "/swipe")
 public class SwipeServlet extends HttpServlet {
   private final static String LEFT = "left";
   private final static String RIGHT = "right";
 
-  private final static int CHANNEL_POOL_SIZE = 10; // TODO: ?? Sensible Range??
-  private final static Map<String, String> RMQ_SERVER_CONFIG  = Stream.of(new String[][] {
-      { "userName", "cindychen" },
-      { "password", "password" },
-      { "virtualHost", "swipe_broker" },
-      { "hostName", "34.221.254.107" },
-      { "portNumber", "5672" }      // 5672 is for RabbitMQ server. 15672 is to access management console. https://stackoverflow.com/a/69523757
-  }).collect(Collectors.toMap(data -> data[0], data -> data[1]));
-
-  private final static String EXCHANGE_NAME = "swipedata";
 
   private RMQChannelPool pool;
 
@@ -46,11 +31,11 @@ public class SwipeServlet extends HttpServlet {
 
     ConnectionFactory connectionFactory = new ConnectionFactory();
     // Connect to RMQ server. Ref: https://www.rabbitmq.com/api-guide.html#connecting
-    connectionFactory.setUsername(RMQ_SERVER_CONFIG.get("userName"));
-    connectionFactory.setPassword(RMQ_SERVER_CONFIG.get("password"));
-    connectionFactory.setVirtualHost(RMQ_SERVER_CONFIG.get("virtualHost"));
-    connectionFactory.setHost(RMQ_SERVER_CONFIG.get("hostName"));
-    connectionFactory.setPort(Integer.valueOf(RMQ_SERVER_CONFIG.get("portNumber")));
+    connectionFactory.setUsername(Config.RMQ_SERVER_CONFIG.get("userName"));
+    connectionFactory.setPassword(Config.RMQ_SERVER_CONFIG.get("password"));
+    connectionFactory.setVirtualHost(Config.RMQ_SERVER_CONFIG.get("virtualHost"));
+    connectionFactory.setHost(Config.RMQ_SERVER_CONFIG.get("hostName"));
+    connectionFactory.setPort(Integer.valueOf(Config.RMQ_SERVER_CONFIG.get("portNumber")));
 
     final Connection connection;
     try {
@@ -60,7 +45,7 @@ public class SwipeServlet extends HttpServlet {
     }
     RMQChannelFactory channelFactory = new RMQChannelFactory(connection);
 
-    this.pool = new RMQChannelPool(CHANNEL_POOL_SIZE, channelFactory);
+    this.pool = new RMQChannelPool(Config.CHANNEL_POOL_SIZE, channelFactory);
   }
 
   /**
@@ -177,17 +162,15 @@ public class SwipeServlet extends HttpServlet {
    * Ref: Ian's book P136
    */
 
-  private boolean sendMessageToQueue(String direction, String reqBodyJsonStr, Gson gson) {  //TODO: argument type: JsonObject?? String??
+  private boolean sendMessageToQueue(String direction, String reqBodyJsonStr, Gson gson) {
     SwipeDetails swipeDetails = (SwipeDetails) gson.fromJson(reqBodyJsonStr, SwipeDetails.class);
     swipeDetails.setDirection(direction);
     String message = gson.toJson(swipeDetails);
 
     try {
       Channel channel = this.pool.borrowObject();
-      // Declare a durable exchange
-      channel.exchangeDeclare(EXCHANGE_NAME, "fanout", true);
       // Publish a persistent message. Route key is ignored ("") in fanout mode.
-      channel.basicPublish(EXCHANGE_NAME, "", MessageProperties.PERSISTENT_TEXT_PLAIN, message.getBytes("UTF-8"));
+      channel.basicPublish(Config.EXCHANGE_NAME, "", MessageProperties.PERSISTENT_TEXT_PLAIN, message.getBytes("UTF-8"));
       // TODO: Add Publisher Confirm
       this.pool.returnObject(channel);
       return true;
