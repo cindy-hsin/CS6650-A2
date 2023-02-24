@@ -5,7 +5,8 @@ public class SwipeDetails {
   private static final int MAX_SWIPER_ID = 5000;
   private static final int MAX_SWIPEE_ID = 1000000;
 
-
+  public final static String LEFT = "left";
+  public final static String RIGHT = "right";
   private String swiper;
   private String swipee;
   private String comment;

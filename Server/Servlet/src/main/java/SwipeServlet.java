@@ -23,12 +23,8 @@ import com.google.gson.Gson;
 
 @WebServlet(name = "SwipeServlet", value = "/swipe")
 public class SwipeServlet extends HttpServlet {
-  private final static String LEFT = "left";
-  private final static String RIGHT = "right";
-
 
   private RMQChannelPool pool;
-
 
   @Override
   public void init() throws ServletException {
@@ -84,7 +80,7 @@ public class SwipeServlet extends HttpServlet {
     // check if URL is valid! "left" or right""
     Pair urlValidationRes = this.isUrlValid(urlPath);
     if (!urlValidationRes.isUrlPathValid()) {
-      responseMsg.setMessage("invalid path parameter: should be " + LEFT + " or " + RIGHT);
+      responseMsg.setMessage("invalid path parameter: should be " + SwipeDetails.LEFT + " or " + SwipeDetails.RIGHT);
       response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
       response.getOutputStream().print(gson.toJson(responseMsg));
       response.getOutputStream().flush();
@@ -125,7 +121,7 @@ public class SwipeServlet extends HttpServlet {
     // urlPath  = "/1/seasons/2019/day/1/skier/123"
     // urlParts = [, 1, seasons, 2019, day, 1, skier, 123]
     String[] urlParts = urlPath.split("/");
-    if (urlParts.length == 2 && (urlParts[1].equals(LEFT) || urlParts[1].equals(RIGHT)))
+    if (urlParts.length == 2 && (urlParts[1].equals(SwipeDetails.LEFT) || urlParts[1].equals(SwipeDetails.RIGHT)))
       return new Pair(true, urlParts[1]);
     return new Pair(false, null);
   }
