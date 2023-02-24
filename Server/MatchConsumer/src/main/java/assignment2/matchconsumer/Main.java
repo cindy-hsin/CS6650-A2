@@ -7,6 +7,8 @@ import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -24,8 +26,10 @@ public class Main {
 
     Connection connection = connectionFactory.newConnection();
 
+    ConcurrentHashMap<String, Set<String>> map = new ConcurrentHashMap();
+
     for (int i = 0; i < MATCH_CONSUMER_THREAD_NUM; i++) {
-      Runnable thread = new ConsumerThread(connection);
+      Runnable thread = new ConsumerThread(connection, map);
       new Thread(thread).start();
     }
 

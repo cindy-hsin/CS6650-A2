@@ -1,12 +1,17 @@
 package assignment2.matchconsumer;
 
 import assignment2.config.constant.RMQConnectionInfo;
+import assignment2.config.datamodel.SwipeDetails;
+import com.google.gson.Gson;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.DeliverCallback;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -15,11 +20,14 @@ import java.util.logging.Logger;
 public class ConsumerThread implements Runnable{
 
   private static final String QUEUE_NAME = "match";
+  private static final int MAX_MATCH_SIZE = 100;
+  private static final Gson gson = new Gson();
   private Connection connection;
 
-
-  public ConsumerThread(Connection connection) {
+  private ConcurrentHashMap<String, Set<String>> map;
+  public ConsumerThread(Connection connection, ConcurrentHashMap<String, Set<String>> map) {
     this.connection = connection;
+    this.map = map;
   }
 
   @Override
@@ -39,7 +47,15 @@ public class ConsumerThread implements Runnable{
       DeliverCallback deliverCallback = (consumerTag, delivery) -> {
         String message = new String(delivery.getBody(), "UTF-8");
         // Store data into a thread-safe hashmap
-        // TODO: What kind of message do we get?
+        SwipeDetails swipeDetails = gson.fromJson(message, SwipeDetails.class);
+        String swiperId = swipeDetails.getSwiper();
+        String swipeeId = swipeDetails.getSwipee();
+
+        this.map.putIfAbsent(swiperId, new HashSet<>());
+
+        if (this.map.get(swiperId).size() < MAX_MATCH_SIZE) {
+          this.map.get(swiperId).add(swipeeId);
+        }
 
         // Manual Acknowledgement
         channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);

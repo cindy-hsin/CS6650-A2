@@ -5,11 +5,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 public class RMQConnectionInfo {
 
-  private final static String RMQ_IP = "35.90.239.15";
+  private final static String RMQ_IP = "35.91.84.143";
   public final static Map<String, String> RMQ_SERVER_CONFIG  = Stream.of(new String[][] {
-      { "userName", "cindychen" },
-      { "password", "password" },
-      { "virtualHost", "swipe_broker" },
+      { "userName", "cindychen" },    // localhost: guest
+      { "password", "password" },     // localhost: guest
+      { "virtualHost", "swipe_broker" },  // localhost: "/"
       { "hostName", RMQ_IP },
       { "portNumber", "5672" }      // 5672 is for RabbitMQ server. 15672 is to access management console. https://stackoverflow.com/a/69523757
   }).collect(Collectors.toMap(data -> data[0], data -> data[1]));
