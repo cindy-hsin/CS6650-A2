@@ -5,7 +5,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 public class RMQConnectionInfo {
 
-  private final static String RMQ_IP = "35.91.84.143";
+  private final static String RMQ_IP = "52.12.191.188";
   public final static Map<String, String> RMQ_SERVER_CONFIG  = Stream.of(new String[][] {
       { "userName", "cindychen" },    // localhost: guest
       { "password", "password" },     // localhost: guest
