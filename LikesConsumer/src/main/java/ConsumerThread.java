@@ -1,35 +1,38 @@
+import com.google.gson.Gson;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.DeliverCallback;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 
 
 public class ConsumerThread implements Runnable{
 
   private static final String QUEUE_NAME = "likes";
   private static final String EXCHANGE_NAME = "swipedata";
+  private static final String LEFT = "left";
+  public static final String RIGHT = "right";
+  private static final Gson gson = new Gson();
   private Connection connection;
-  private CountDownLatch latch;
+  private ConcurrentHashMap<String, int[]> map;
 
 
-  public ConsumerThread(Connection connection, CountDownLatch latch) {
+  public ConsumerThread(Connection connection, ConcurrentHashMap<String, int[]> map) {
     this.connection = connection;
-    this.latch = latch;
+    this.map = map;
   }
 
   @Override
   public void run() {
     try {
       final Channel channel = connection.createChannel();
-
-      // Declare exchange in Consumer side as well,
-      // in case Consumer is started before Producer(Servlet).
-      channel.exchangeDeclare(EXCHANGE_NAME, "fanout",true); // Durable, consistent with Server
 
       // Durable, Non-exclusive(Can be shared across different channels),
       // Non-autoDelete, classic queue.
@@ -43,7 +46,16 @@ public class ConsumerThread implements Runnable{
       DeliverCallback deliverCallback = (consumerTag, delivery) -> {
         String message = new String(delivery.getBody(), "UTF-8");
         // Store data into a thread-safe hashmap
-        // TODO: What kind of message do we get?
+        // TODO: Parse message, get swiperId & direction
+        SwipeDetails swipeDetails = gson.fromJson(message, SwipeDetails.class);
+        String swiperId = swipeDetails.getSwiper();
+
+        this.map.putIfAbsent(swiperId, new int[] {0,0});
+        if (swipeDetails.getDirection() == RIGHT) {
+          this.map.get(swiperId)[0] ++;
+        } else {
+          this.map.get(swiperId)[1] ++;
+        }
 
         // Manual Acknowledgement
         channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
@@ -56,9 +68,9 @@ public class ConsumerThread implements Runnable{
       // server-generated consumerTag
       channel.basicConsume(QUEUE_NAME, false, deliverCallback, consumerTag -> {});
 
-
     } catch (IOException e) {
       Logger.getLogger(ConsumerThread.class.getName()).log(Level.SEVERE, null, e);
     }
   }
 }
+

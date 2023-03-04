@@ -17,19 +17,14 @@ public class ConsumerThread implements Runnable{
   private CountDownLatch latch;
 
 
-  public ConsumerThread(Connection connection, CountDownLatch latch) {
+  public ConsumerThread(Connection connection) {
     this.connection = connection;
-    this.latch = latch;
   }
 
   @Override
   public void run() {
     try {
       final Channel channel = connection.createChannel();
-
-      // Declare exchange in Consumer side as well,
-      // in case Consumer is started before Producer(Servlet).
-      channel.exchangeDeclare(EXCHANGE_NAME, "fanout",true); // Durable, consistent with Server
 
       // Durable, Non-exclusive(Can be shared across different channels),
       // Non-autoDelete, classic queue.

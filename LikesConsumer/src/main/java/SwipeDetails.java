@@ -1,5 +1,3 @@
-package datamodel;
-
 public class SwipeDetails {
   private final static int MAX_COMMENT_LEN = 256;
   private static final int MAX_SWIPER_ID = 5000;
