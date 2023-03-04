@@ -62,7 +62,7 @@ public class ConsumerThread implements Runnable{
       };
 
       // No autoAck, to ensure that Consumer only acknowledges Queue after the message got processed succesfully.
-      // Nolocal (TODO: confirm): If nolocal, means that the server will not send messages to the connection that published them.
+      // Nolocal
       // IsNot exclusive. If exclusive, queues may only be accessed by the current connection. (But we want Another Consumer to access this queue as well)
       // server-generated consumerTag
       channel.basicConsume(QUEUE_NAME, false, deliverCallback, consumerTag -> {});

@@ -51,11 +51,14 @@ public class ConsumerThread implements Runnable{
         String swiperId = swipeDetails.getSwiper();
         String swipeeId = swipeDetails.getSwipee();
 
-        this.map.putIfAbsent(swiperId, new HashSet<>());
+        if (swipeDetails.getDirection() == SwipeDetails.RIGHT) {
+          this.map.putIfAbsent(swiperId, new HashSet<>());
 
-        if (this.map.get(swiperId).size() < MAX_MATCH_SIZE) {
-          this.map.get(swiperId).add(swipeeId);
+          if (this.map.get(swiperId).size() < MAX_MATCH_SIZE) {
+            this.map.get(swiperId).add(swipeeId);
+          }
         }
+
 
         // Manual Acknowledgement
         channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
@@ -63,14 +66,10 @@ public class ConsumerThread implements Runnable{
       };
 
       // No autoAck, to ensure that Consumer only acknowledges Queue after the message got processed succesfully.
-      // Nolocal (TODO: confirm): If nolocal, means that the server will not send messages to the connection that published them.
+      // Nolocal
       // IsNot exclusive. If exclusive, queues may only be accessed by the current connection. (But we want Another Consumer to access this queue as well)
       // server-generated consumerTag
       channel.basicConsume(QUEUE_NAME, false, deliverCallback, consumerTag -> {});
-
-
-      //TODO: Set a timeout for this thread to close?? (After a period of time, if there is no more msg form the queue,
-      // then close the thread by calling latch.countDown())
 
     } catch (IOException e) {
       Logger.getLogger(ConsumerThread.class.getName()).log(Level.SEVERE, null, e);
